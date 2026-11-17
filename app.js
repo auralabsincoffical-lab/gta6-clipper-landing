@@ -120,7 +120,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !popup.hidden) closePopup();
 });
 
-form.addEventListener("submit", async (e) => {
+form.addEventListener("submit", (e) => {
   e.preventDefault();
   errEl.textContent = "";
   const name = document.getElementById("lead-name").value.trim();
@@ -129,24 +129,25 @@ form.addEventListener("submit", async (e) => {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = "Please enter a valid email address."; return; }
 
   submitBtn.disabled = true;
-  submitBtn.textContent = "Saving your details...";
+  submitBtn.textContent = "Redirecting...";
 
+  // Send the lead in the background and redirect immediately. Never make the buyer wait for a third-party
+  // email service: a slow response here costs conversions. `keepalive` lets the request finish after navigation.
+  const payload = JSON.stringify({
+    name,
+    email,
+    _subject: `GTA 6 Clipper lead: ${name}`,
+    _template: "table",
+  });
   try {
-    // FormSubmit.co emails the submission straight to the notification address, free, no backend required.
-    const res = await fetch(`https://formsubmit.co/ajax/${NOTIFICATION_EMAIL}`, {
+    fetch(`https://formsubmit.co/ajax/${NOTIFICATION_EMAIL}`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({
-        name,
-        email,
-        _subject: `GTA 6 Clipper lead: ${name}`,
-        _template: "table",
-      }),
-    });
-    if (!res.ok) throw new Error("delivery failed");
+      body: payload,
+      keepalive: true,
+    }).catch((err) => console.warn("Lead delivery failed:", err));
   } catch (err) {
-    // If delivery fails, still let the buyer continue, but tell them.
-    console.warn("Lead delivery failed:", err);
+    console.warn("Lead delivery could not start:", err);
   }
 
   if (!PAYMENT_URL || PAYMENT_URL === "PAYMENT_LINK_HERE") {
@@ -155,5 +156,5 @@ form.addEventListener("submit", async (e) => {
     submitBtn.innerHTML = 'Continue to payment <span aria-hidden="true">&rarr;</span>';
     return;
   }
-  window.location.href = PAYMENT_URL;
+  window.location.assign(PAYMENT_URL);
 });
